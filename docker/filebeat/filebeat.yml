@@ -1,0 +1,23 @@
+name: "nodejs-app-filebeat"
+logging.metrics.enabled: false
+xpack.security.enabled: false
+xpack.monitoring.enabled: false
+setup.ilm.enabled: false
+setup.template.enabled: false
+
+
+filebeat.inputs:
+- type: filestream
+  id: task-app-logs
+  enabled: true
+  paths:
+    - /src/logs/*.log
+  scan_frequency: 1s
+  fields:
+    service: task-app
+  fields_under_root: true
+
+  
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "task-app"
