@@ -14,65 +14,81 @@ import { ElasticSearchClient } from "../shared/infraestructure/ElasticClient";
 import { SearchRepository } from "../shared/domain/SearchRepository";
 import { ElasticSearchRepository } from "../shared/infraestructure/ElasticSearchRepository";
 import { ILogger } from "../shared/domain/Logger";
-import { winstonLogger } from "../shared/infraestructure/WinstonLogger";
+import { winstonLogger, WinstonLoggerAdapter } from "../shared/infraestructure/WinstonLogger";
 import { SentryClient } from "../shared/infraestructure/SentryClient";
+import { PostgresClient } from "../shared/infraestructure/PostgresClient";
+import { initTaskModel } from "../modules/Task/infraestructure/TaskWriteModel";
+import { TaskPostgresWriteDB } from "../modules/Task/infraestructure/TaskPostgresWriteDB";
+import { MongoDBClient } from "../shared/infraestructure/MongoClient";
+import { TaskMongoReadRepository } from "../modules/Task/infraestructure/MongoTaskReadRepository";
 
 export class Container {
-  taskWriteDB: TaskWriteRepository;
-  taskReadDB: TaskReadRepository;
+  postgresClient: PostgresClient
+  mongoDBClient: MongoDBClient
+  taskWriteDB?: TaskWriteRepository;
+  taskReadDB?: TaskReadRepository;
   messageBus: MessageBus;
   elasticSearch: SearchRepository;
   logger: ILogger;
   sentry: typeof SentryClient
 
   constructor() {
-    this.logger = winstonLogger
+    this.logger = new WinstonLoggerAdapter(winstonLogger)
     this.sentry = SentryClient
     this.messageBus = new InMemoryMessageBus(this.logger, this.sentry!);
-    this.taskWriteDB = new TaskInMemoryWriteDB();
-    this.taskReadDB = new TaskInMemoryReadDB();
+    this.postgresClient = new PostgresClient(this.logger, this.sentry!)
+    this.mongoDBClient = new MongoDBClient(this.logger)
     this.elasticSearch = new ElasticSearchRepository(ElasticSearchClient())
-    this.elasticSearch = new ElasticSearchRepository(ElasticSearchClient())
+  }
+
+  async initialize() {
+    await this.mongoDBClient.initialize()
+    await this.postgresClient.initialize()
+
+    // this.taskWriteDB = new TaskInMemoryWriteDB();
+    this.taskWriteDB = new TaskPostgresWriteDB()
+    // this.taskReadDB = new TaskMongoReadRepository(this.mongoDBClient)
+    this.taskReadDB = new TaskMongoReadRepository(this.mongoDBClient)
+
+    initTaskModel(this.postgresClient.dbClient)
     this.registerHandlers();
     this.registerEventHandler()
     this.registerQueryHandler()
   }
 
-  initialize() {}
-
-  private registerHandlers() {
+  private registerHandlers() { 
     this.messageBus.registerCommandHandler(
       "TaskCreateCommand",
-      new CreateTaskCommandHandler(this.taskWriteDB, this.messageBus),
+      new CreateTaskCommandHandler(this.taskWriteDB!, this.messageBus),
     );
 
     this.messageBus.registerCommandHandler(
       "TaskCompleteCommand",
-      new CompletedTaskCommandHandler(this.taskWriteDB, this.messageBus),
+      new CompletedTaskCommandHandler(this.taskWriteDB!, this.messageBus),
     );
   }
 
   private registerEventHandler(){
     this.messageBus.registerEventHandler(
       'TaskCreatedEvent',
-      [new TaskCreatedEventHandler(this.taskReadDB, this.elasticSearch)]
+      [new TaskCreatedEventHandler(this.taskReadDB!, this.elasticSearch)]
     )
 
      this.messageBus.registerEventHandler(
       'TaskCompletedEvent',
-      [new TaskCompletedEventHandler(this.taskReadDB, this.elasticSearch)]
+      [new TaskCompletedEventHandler(this.taskReadDB!, this.elasticSearch)]
     )
   }
 
   private registerQueryHandler(){
-    // this.messageBus.registerQueryHandler(
-    //   'FindAllTaskQuery',
-    //   new FindAllTaskQueryHandler(this.taskReadDB)
-    // )
+    this.messageBus.registerQueryHandler(
+      'FindAllTaskQuery',
+      new FindAllTaskQueryHandler(this.taskReadDB!)
+    )
 
      this.messageBus.registerQueryHandler(
       'FindTaskByIdQuery',
-      new FindTaskByIdQueryHandler(this.taskReadDB)
+      new FindTaskByIdQueryHandler(this.taskReadDB!)
     )
   }
 }

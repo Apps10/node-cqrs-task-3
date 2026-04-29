@@ -8,8 +8,8 @@ const startServer = async () => {
   const app = express()
 
   const container = new Container()
-  container.initialize()
   const logger = container.logger
+  await container.initialize()
 
   app.use(express.json())
   app.use('/task', createTaskRoute(container.messageBus, logger))

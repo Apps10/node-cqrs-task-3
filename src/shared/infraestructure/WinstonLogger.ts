@@ -1,15 +1,13 @@
 import winston from "winston";
 import { ENVIRONMENT } from "../../bootstrap/Envs";
+import { ILogger } from "../domain/Logger";
 
 const isProd = ENVIRONMENT !== 'dev'
 const devFormat = winston.format.combine(
-  winston.format.timestamp({ format: "HH:mm:ss" }),
-  winston.format.printf(({ level, message, timestamp, ...meta }) => {
-    const metaString = Object.keys(meta).length
-      ? JSON.stringify(meta)
-      : "";
-
-    return `[${timestamp}] ${level}: ${message} ${metaString}`;
+  winston.format.splat(),
+  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+  winston.format.printf(({ level, message, timestamp }) => {
+    return `[${timestamp}] ${level}: ${message}`;
   })
 )
 const prodFormat = winston.format.combine(
@@ -28,5 +26,38 @@ export const winstonLogger = winston.createLogger({
     new winston.transports.File({ filename: "logs/app.log" })
   ],
 })
+
+
+export class WinstonLoggerAdapter implements ILogger {
+  constructor(private readonly winston: winston.Logger){}
+
+  debug(message: string, metadata: any): void {
+    const metadataStringify = this.formatMetadata(metadata)
+    this.winston.debug(this.formatMessage(message, metadataStringify))
+  }
+
+  info(message: string, metadata: any): void {
+    const metadataStringify = this.formatMetadata(metadata)
+    this.winston.info(this.formatMessage(message, metadataStringify))
+  }
+
+  error(message: string, metadata: any): void {
+    const metadataStringify = this.formatMetadata(metadata)
+    this.winston.error(this.formatMessage(message, metadataStringify))
+  }
+
+  warn(message: string, metadata: any): void {
+    const metadataStringify = this.formatMetadata(metadata)
+    this.winston.warn(this.formatMessage(message, metadataStringify))
+  }
+
+  private formatMetadata(metadata: any) {
+    return typeof metadata === "object" ? JSON.stringify(metadata): metadata
+  }
+
+  private formatMessage(message:string, metadata: string) {
+    return `${message}: ${metadata}`
+  }
+}
 
 

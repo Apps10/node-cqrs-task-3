@@ -1,4 +1,29 @@
 services:
+  writeDB:
+    image: postgres:14
+    container_name: writeDB_postgres
+    restart: always
+    ports:
+      - $MYSQL_PORT:5432
+    environment:
+      POSTGRES_DB: $MYSQL_DATABASE_NAME
+      POSTGRES_USER: $MYSQL_USER
+      POSTGRES_PASSWORD: $MYSQL_PASSWORD
+    volumes:
+      - ./docker/writeDB_postgres_data:/var/lib/postgresql/data
+
+  readDB:
+    image: mongo:7.0-jammy
+    container_name: cqrs-mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=cqrs_task_read
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./docker/readDB_mongodb_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:9.3.3
     environment:
@@ -46,7 +71,7 @@ services:
       POSTGRES_USER: glitchtip
       POSTGRES_PASSWORD: glitchtip
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./docker/glitchtip_postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7
@@ -92,9 +117,6 @@ services:
       DATABASE_URL: postgres://glitchtip:glitchtip@postgres:5432/glitchtip
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: super-secret-key
-
-volumes:
-  postgres_data:
 
 networks:
   app-tier:

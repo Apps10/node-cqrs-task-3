@@ -10,7 +10,6 @@ export class TaskCreatedEventHandler implements EventHandler<TaskCreatedEvent> {
   ){}
 
   async handle(event: TaskCreatedEvent): Promise<void> {
-    throw new Error('test errror in TaskCreatedEventHandler')
     const { task } = event
 
     await this.taskReadRepository.save(task)
